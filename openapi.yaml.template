@@ -1,0 +1,168 @@
+openapi: 3.0.3
+info:
+  title: MarkItDown API
+  description: |
+    A REST API service for converting document files (PDF, Office documents, etc.) to Markdown.
+    ## Supported File Formats
+    - Documents: PDF, PPTX, DOCX, XLSX
+    - Data: CSV, JSON, XML
+    - Images: PNG, JPG, JPEG
+  version: 1.0.0
+  contact:
+    name: API Support
+    url: https://github.com/YOUR-GITHUB-ID/YOUR-GITHUB-REPO/issues
+servers:
+  - url: https://YOUR-FLY-IO-PROJECT-NAME.fly.dev
+    description: Production server
+  - url: http://localhost:8000
+    description: Local development server
+
+paths:
+  /convert:
+    post:
+      summary: Convert document to Markdown
+      description: |
+        Convert documents to Markdown via file upload or URL.
+        Only one of file or URL should be provided.
+      operationId: convert
+      tags:
+        - conversion
+      security:
+        - APIKeyHeader: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: Document file to convert
+                url:
+                  type: string
+                  format: uri
+                  description: URL of the document to convert
+              oneOf:
+                - required: [file]
+                - required: [url]
+      responses:
+        '200':
+          description: Successfully converted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConversionResult'
+              example:
+                result: |
+                  # Document Title
+
+                  ## Section 1
+                  Document content...
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                missing_input:
+                  value:
+                    detail: Either file or url must be provided
+                multiple_inputs:
+                  value:
+                    detail: Only one of file or url should be provided
+                invalid_format:
+                  value:
+                    detail: Unsupported or invalid file format
+        '401':
+          description: Authentication failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                detail: Invalid API key
+        '403':
+          description: Access denied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                detail: URL domain not allowed
+        '413':
+          description: File size exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                detail: File too large. Maximum size is 10MB
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                detail: Internal server error occurred
+
+  /health:
+    get:
+      summary: Check service status
+      description: Returns service status and version information
+      operationId: healthCheck
+      tags:
+        - monitoring
+      responses:
+        '200':
+          description: Service status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+
+components:
+  schemas:
+    ConversionResult:
+      type: object
+      properties:
+        result:
+          type: string
+          description: Converted Markdown text
+      required:
+        - result
+    Error:
+      type: object
+      properties:
+        detail:
+          type: string
+          description: Error message
+      required:
+        - detail
+    HealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          description: Service status
+        version:
+          type: string
+          description: API version
+      required:
+        - status
+        - version
+
+  securitySchemes:
+    APIKeyHeader:
+      type: apiKey
+      in: header
+      name: X-API-Key
+
+tags:
+  - name: conversion
+    description: Document conversion endpoints
+  - name: monitoring
+    description: Monitoring-related endpoints

@@ -1,0 +1,6 @@
+**/.env.template
+**/sample
+fly.toml
+README.md
+Dockerfile
+.DS_Store
