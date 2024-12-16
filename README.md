@@ -57,7 +57,7 @@ flyctl deploy
 
 ### Authentication
 
-All API endpoints require an API key to be sent in the `X-API-Key` header.
+All API endpoints require an API key to be sent in the `X-API-Key` header or `BEARER` token in the `Authorization` header.
 
 ### Endpoints
 

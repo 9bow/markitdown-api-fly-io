@@ -5,7 +5,8 @@ from typing import Optional
 import requests
 from pydantic import BaseModel
 from fastapi import FastAPI, UploadFile, HTTPException, Security, Depends, Form, File
-from fastapi.security import APIKeyHeader
+from fastapi.security import HTTPBearer, APIKeyHeader
+from fastapi.security.http import HTTPAuthorizationCredentials
 from fastapi.openapi.utils import get_openapi
 from markitdown import MarkItDown
 
@@ -17,7 +18,6 @@ from utils import (
 )
 
 # Load environment variables
-API_KEY_NAME = "X-API-Key"
 API_KEY = os.getenv("API_KEY", "DEFAULT_API_KEY_FOR_MARKITDOWN_API")  # Read from FLY secrets
 API_VER = os.getenv("VERSION", "0.0.1")                               # Read from .env file
 MAX_FILE_SIZE = int(os.getenv("MAX_DOWNLOAD_SIZE", "52428800"))       # Read from .env file
@@ -29,7 +29,6 @@ app = FastAPI(
     docs_url=None,    # Disable default /docs
     redoc_url=None    # Disable default /redoc
 )
-api_key_header = APIKeyHeader(name=API_KEY_NAME)
 
 # Response Models
 class ConversionResult(BaseModel):
@@ -39,14 +38,34 @@ class HealthResponse(BaseModel):
     status: str
     version: str
 
-# API key verification
-async def verify_api_key(api_key: str = Security(api_key_header)):
-    if api_key != API_KEY:
-        raise HTTPException(
-            status_code=401,
-            detail="Invalid API key"
-        )
-    return api_key
+# Security schemes
+api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
+bearer_auth = HTTPBearer(auto_error=False)
+
+# API key or Bearer token verification
+async def get_auth_token(
+    api_key: str = Security(api_key_header),
+    bearer: HTTPAuthorizationCredentials = Security(bearer_auth)
+) -> str:
+    """
+    Verify either API key from header or Bearer token.
+    Returns the valid token/key or raises 401 if neither is valid.
+    """
+    # Check API Key header first
+    if api_key == API_KEY:
+        return api_key
+
+    # Then check Bearer token
+    if bearer and bearer.credentials == API_KEY:
+        return bearer.credentials
+
+    # If neither is valid, raise 401
+    raise HTTPException(
+        status_code=401,
+        detail="Invalid authentication credentials",
+        headers={"WWW-Authenticate": "Bearer or X-API-Key"}
+    )
+
 
 # Health check endpoint
 @app.get("/health", response_model=HealthResponse)
@@ -58,7 +77,7 @@ async def health_check():
 
 # OpenAPI schema endpoint with authentication
 @app.get("/openapi.json", include_in_schema=False)
-async def get_openapi_endpoint(api_key: str = Depends(verify_api_key)):
+async def get_openapi_endpoint(auth_token: str = Depends(get_auth_token)):
     return get_openapi(
         title="MarkItDown API",
         version=API_VER,
@@ -71,7 +90,7 @@ async def get_openapi_endpoint(api_key: str = Depends(verify_api_key)):
 async def convert(
     file: Optional[UploadFile] = File(None),
     url: Optional[str] = Form(None),
-    api_key: str = Depends(verify_api_key)
+    auth_token: str = Depends(get_auth_token)
 ):
     # Validate input: either file or url must be provided
     if not file and not url:
