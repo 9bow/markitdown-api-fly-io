@@ -1,6 +1,22 @@
-fastapi
-uvicorn
-python-multipart
-python-dotenv
-markitdown      # Microsoft MarkItDown: https://github.com/microsoft/markitdown
-requests
+# FastAPI and dependencies
+fastapi>=0.103.0
+uvicorn>=0.23.0
+python-multipart>=0.0.6
+python-dotenv>=1.0.0
+
+# Document conversion
+markitdown>=0.0.1a3       # Microsoft MarkItDown: https://github.com/microsoft/markitdown
+html2text>=2020.1.16      # HTML to Markdown conversion
+readability-lxml>=0.8.1   # Web content extraction, Mozilla's Readability port: https://github.com/buriy/python-readability
+trafilatura>=1.6.0        # Advanced web content extraction
+
+# HTTP and networking
+requests>=2.31.0
+pydantic>=2.4.0           # Data validation
+
+# Types
+types-requests>=2.31.0.10 # Type stubs for requests
+typing-extensions>=4.7.1  # Additional type hints
+
+# Text processing
+chardet>=5.2.0            # Character encoding detection

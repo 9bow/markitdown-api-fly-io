@@ -1,12 +1,37 @@
-openapi: 3.0.3
+openapi: 3.1.0
 info:
   title: MarkItDown API
   description: |
-    A REST API service for converting document files (PDF, Office documents, etc.) to Markdown.
-    ## Supported File Formats
-    - Documents: PDF, PPTX, DOCX, XLSX
-    - Data: CSV, JSON, XML
-    - Images: PNG, JPG, JPEG
+    A REST API service that converts documents and web content to Markdown, supporting various file formats
+    and intelligent web content extraction.
+
+    ## Supported Content Types
+    ### Documents
+    - PDF (`.pdf`)
+    - Microsoft Word (`.docx`)
+    - Microsoft Excel (`.xlsx`)
+    - Microsoft PowerPoint (`.pptx`)
+
+    ### Web Content
+    - HTML pages (`.html`, `.htm`)
+    - Web articles and blog posts
+
+    ### Data Files
+    - CSV (`.csv`)
+    - JSON (`.json`)
+    - XML (`.xml`)
+
+    ### Images
+    - JPEG (`.jpg`, `.jpeg`)
+    - PNG (`.png`)
+    - GIF (`.gif`)
+    - WebP (`.webp`)
+
+    ## Content Extraction
+    For web content, the service uses:
+    1. Trafilatura for primary content extraction
+    2. Python-Readability as a fallback method
+    Both methods ensure high-quality content extraction with preserved formatting.
   version: 1.0.0
   contact:
     name: API Support
@@ -20,15 +45,19 @@ servers:
 paths:
   /convert:
     post:
-      summary: Convert document to Markdown
+      summary: Convert document or web content to Markdown
       description: |
-        Convert documents to Markdown via file upload or URL.
+        Convert documents or web content to Markdown via file upload or URL.
         Only one of file or URL should be provided.
+
+        For web content, the service will automatically extract the main content
+        and convert it to clean, well-formatted Markdown.
       operationId: convert
       tags:
         - conversion
       security:
         - APIKeyHeader: []
+        - BearerAuth: []
       requestBody:
         required: true
         content:
@@ -43,7 +72,7 @@ paths:
                 url:
                   type: string
                   format: uri
-                  description: URL of the document to convert
+                  description: URL of the document or webpage to convert
               oneOf:
                 - required: [file]
                 - required: [url]
@@ -53,13 +82,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ConversionResult'
+                $ref: '#/components/schemas/EnhancedConversionResult'
               example:
                 result: |
-                  # Document Title
+                  # Article Title
 
                   ## Section 1
-                  Document content...
+                  Article content with preserved formatting...
+                metadata:
+                  content_type: text/html
+                  file_size: 12345
+                  processing_time: 0.532
+                  original_url: https://example.com/article
+                  conversion_method: trafilatura
         '400':
           description: Bad Request
           content:
@@ -76,6 +111,9 @@ paths:
                 invalid_format:
                   value:
                     detail: Unsupported or invalid file format
+                download_failed:
+                  value:
+                    detail: Failed to download file
         '401':
           description: Authentication failed
           content:
@@ -83,15 +121,15 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
               example:
-                detail: Invalid API key
-        '403':
-          description: Access denied
+                detail: Invalid authentication credentials
+        '408':
+          description: Request timeout
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
               example:
-                detail: URL domain not allowed
+                detail: Request timeout
         '413':
           description: File size exceeded
           content:
@@ -99,7 +137,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
               example:
-                detail: File too large. Maximum size is 10MB
+                detail: File too large. Maximum size is 50MB
         '500':
           description: Server error
           content:
@@ -107,7 +145,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
               example:
-                detail: Internal server error occurred
+                detail: Error processing webpage
 
   /health:
     get:
@@ -116,6 +154,9 @@ paths:
       operationId: healthCheck
       tags:
         - monitoring
+      security:
+        - APIKeyHeader: []
+        - BearerAuth: []
       responses:
         '200':
           description: Service status
@@ -123,17 +164,50 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HealthResponse'
+              example:
+                status: healthy
+                version: 0.0.1
 
 components:
   schemas:
-    ConversionResult:
+    ConversionMetadata:
+      type: object
+      properties:
+        content_type:
+          type: string
+          description: Detected content type of the input
+        file_size:
+          type: integer
+          description: Size of the processed file in bytes
+        processing_time:
+          type: number
+          format: float
+          description: Time taken to process the request in seconds
+        original_url:
+          type: string
+          format: uri
+          description: Original URL for URL-based conversions
+        conversion_method:
+          type: string
+          description: Method used for conversion (markitdown, trafilatura, or readability)
+      required:
+        - content_type
+        - file_size
+        - processing_time
+        - conversion_method
+
+    EnhancedConversionResult:
       type: object
       properties:
         result:
           type: string
           description: Converted Markdown text
+        metadata:
+          $ref: '#/components/schemas/ConversionMetadata'
       required:
         - result
+        - metadata
+
     Error:
       type: object
       properties:
@@ -142,6 +216,7 @@ components:
           description: Error message
       required:
         - detail
+
     HealthResponse:
       type: object
       properties:
@@ -160,9 +235,12 @@ components:
       type: apiKey
       in: header
       name: X-API-Key
+    BearerAuth:
+      type: http
+      scheme: bearer
 
 tags:
   - name: conversion
-    description: Document conversion endpoints
+    description: Document and web content conversion endpoints
   - name: monitoring
     description: Monitoring-related endpoints
